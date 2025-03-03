@@ -9,8 +9,8 @@
   <url>http://maven.apache.org</url>
   <properties>
       <!-- Set the Java version to 17 -->
-      <maven.compiler.source>17</maven.compiler.source>
-      <maven.compiler.target>17</maven.compiler.target>
+      <maven.compiler.source>21</maven.compiler.source>
+      <maven.compiler.target>21</maven.compiler.target>
   </properties>
   <dependencies>
 
@@ -23,19 +23,19 @@
     <dependency>
         <groupId>software.amazon.awssdk</groupId>
         <artifactId>dsql</artifactId>
-        <version>2.30.2</version>
+        <version>2.30.29</version>
     </dependency>
 
     <dependency>
       <groupId>software.amazon.awssdk</groupId>
       <artifactId>regions</artifactId>
-      <version>2.30.2</version>
+      <version>2.30.29</version>
     </dependency>
 
     <dependency>
       <groupId>software.amazon.awssdk</groupId>
       <artifactId>auth</artifactId>
-      <version>2.30.2</version>
+      <version>2.30.29</version>
     </dependency>
 
     <dependency>
@@ -66,7 +66,12 @@
         <version>2.18.2</version>
     </dependency>
 
-
+    <!-- https://mvnrepository.com/artifact/software.amazon.awssdk/sqs -->
+    <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>sqs</artifactId>
+        <version>2.30.29</version>
+    </dependency>
   </dependencies>
 
   <build>
@@ -77,7 +82,7 @@
               <artifactId>maven-compiler-plugin</artifactId>
               <version>3.8.1</version>
               <configuration>
-                  <release>17</release>
+                  <release>21</release>
               </configuration>
           </plugin>
           <plugin>

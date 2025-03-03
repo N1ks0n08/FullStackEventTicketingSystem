@@ -2,10 +2,14 @@ package com.example;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.JsonNode;
 
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
-import software.amazon.awssdk.services.dsql.DsqlUtilities;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.dsql.DsqlUtilities;
+import software.amazon.awssdk.services.dsql.model.GenerateAuthTokenRequest;
+import software.amazon.awssdk.services.sqs.model.*;
 
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.Context;
@@ -19,11 +23,9 @@ import java.util.Properties;
 import java.util.Scanner;
 import java.util.UUID;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import software.amazon.awssdk.services.sqs.SqsClient;
 
-import software.amazon.awssdk.services.dsql.model.GenerateAuthTokenRequest;
-
-public class App implements RequestHandler<LinkedHashMap<String, Object>, Object> {
+public class App implements RequestHandler<Object, Object> {
     // get connection to Aurora DSQL
     public static Connection getConnection(String clusterEndpoint, String region) throws SQLException {
         Properties props = new Properties();
@@ -34,8 +36,7 @@ public class App implements RequestHandler<LinkedHashMap<String, Object>, Object
         // create a dsqutil instance to generate a Aurora DSQL authentication token
         DsqlUtilities dsqlutil = DsqlUtilities.builder()
             .region(Region.of(region))
-            .credentialsProvider(DefaultCredentialsProvider.builder().asyncCredentialUpdateEnabled(true).build()) // why does this work??!?!?
-            //.credentialsProvider(DefaultCredentialsProvider.builder().asyncCredentialUpdateEnabled(false).build()) // make sure no new AWS credentials are being created, as that will remove the environment variables
+            .credentialsProvider(DefaultCredentialsProvider.builder().asyncCredentialUpdateEnabled(true).build())
             .build();  
         
         String password = dsqlutil.generateDbConnectAdminAuthToken(
@@ -45,7 +46,6 @@ public class App implements RequestHandler<LinkedHashMap<String, Object>, Object
         props.setProperty("password", password);
         return DriverManager.getConnection(url, props);
     }
-
     
     public static String executePSQLCommands(JsonNode input) {
         // Replace the cluster endpoint with your own
@@ -54,14 +54,14 @@ public class App implements RequestHandler<LinkedHashMap<String, Object>, Object
         try (Connection conn = App.getConnection(clusterEndpoint, region)) {
            String name = input.get("Name").textValue();
            String city = input.get("City").textValue();
-           String phoneNumber = input.get("PhoneNumber").textValue();
+           String email = input.get("Email").textValue();
            // Insert some data
            UUID uuid = UUID.randomUUID();
-           PreparedStatement pstmt = conn.prepareStatement("INSERT INTO owner (id, name, city, telephone) VALUES (?, ?, ?, ?)");
+           PreparedStatement pstmt = conn.prepareStatement("INSERT INTO users (id, name, city, email) VALUES (?, ?, ?, ?)");
            pstmt.setObject(1, uuid);
            pstmt.setString(2, name);
            pstmt.setString(3, city);
-           pstmt.setString(4, phoneNumber);
+           pstmt.setString(4, email);
            pstmt.executeUpdate();
            conn.close();
            pstmt.close();
@@ -70,6 +70,20 @@ public class App implements RequestHandler<LinkedHashMap<String, Object>, Object
         } catch (SQLException sqlE) {
             return "Error code: " + sqlE.getErrorCode();
         }
+    }
+
+    public Message getQueueMessage() {
+        SqsClient sqsClient = SqsClient.create();
+        ReceiveMessageRequest receiveRequest = ReceiveMessageRequest.builder()
+            .queueUrl(System.getenv("AWS_VERIFIEDEMAILQUEUE_SQS_URL"))
+            .maxNumberOfMessages(1)
+            .build();
+
+        return sqsClient.receiveMessage(receiveRequest).messages().get(0);
+    }
+
+    public void removeQueueMessage() {
+        // remove messages after processing
     }
 
     /*
@@ -107,29 +121,15 @@ public class App implements RequestHandler<LinkedHashMap<String, Object>, Object
     */
     
     @Override
-    @SuppressWarnings("ConvertToStringSwitch")
-    public Object handleRequest(LinkedHashMap<String, Object> input, Context context) {
+    public Object handleRequest(Object input, Context context) {
         ObjectMapper objectMapper = new ObjectMapper();
-        JsonNode json = objectMapper.valueToTree(input);
-        String route = json.get("routeKey").asText();
-        String message;
-        String requestMethod = json.get("requestContext").get("http").get("method").textValue();
-        if ("ANY /ligma".equals(route)) {
-            message = "You're so sigma!";
-            return "Request method type: " + requestMethod + "\nMessage: " + message;
-        } else if ("POST /ligmaballs".equals(route)) {
-            message = "Wow, you've sent something!";
-            try {
-            JsonNode body = objectMapper.readTree(json.get("body").textValue()); // .textValue() allows for proper cleanup 
-            String dataProcessResult = executePSQLCommands(body);                           // of JSON POST request body to prevent converfsoin error of String to JSON
-            return "Request method type: " + requestMethod + "\nMessage: " + message
-            + "\nData process result: " + dataProcessResult;
-            } catch (Exception e) {
-                return "Error! -> " + e.getMessage();
-            }
-        } else {
-            message = "\nGoofy request :p";
-            return "nRequest method type: " + requestMethod + "\nMessage: " + message;
+        Message queueMessage = getQueueMessage();
+        JsonNode json;
+        try {
+            json = objectMapper.readTree(queueMessage.body());
+            return json.toPrettyString();
+        } catch (Exception e) {
+            return e.getMessage();
         }
     }
     

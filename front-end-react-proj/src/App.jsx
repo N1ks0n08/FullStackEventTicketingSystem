@@ -13,7 +13,7 @@ function AccountCreationSetup() {
     const {data} = await axios.post(post_req_endpoint, {
       Name: formData.get('name'),
       City: formData.get('city'),
-      PhoneNumber: formData.get('phoneNumber')
+      Email: formData.get('email')
     }, {headers: {
       'Content-Type': 'application/json',
     }})
@@ -33,8 +33,8 @@ function AccountCreationSetup() {
         <input id="city" name="city" type="text"/>
         <br/>
 
-        <label htmlFor="phoneNumber">Phone number: </label>
-        <input id="phoneNumber" name="phoneNumber" type="text"/>
+        <label htmlFor="email">Email: </label>
+        <input id="email" name="email" type="text"/>
         <br/>
         <button type="submit">Submit</button>
         <hr/>
