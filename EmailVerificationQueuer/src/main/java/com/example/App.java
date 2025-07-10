@@ -2,6 +2,7 @@ package com.example;
 
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.UUID;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
@@ -20,7 +21,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import software.amazon.awssdk.http.crt.AwsCrtHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.sqs.SqsClient;
-import software.amazon.awssdk.services.sqs.model.GetQueueUrlRequest;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 
 
@@ -76,21 +76,32 @@ public class App implements RequestHandler<LinkedHashMap<String, Object>, Object
     }
     
     public void sendSQSMessage(String jsonStringMessage) {
+        // Create an SQS Client to execute SQS services
+        // Note: An AWS Crt HTTP client is used as the SQS dependency 
+        // has an exclusion of an apache client and netty nio client
+        // within the AWS SQS Documentation for sending messages
         SqsClient sqsClient = SqsClient.builder()
             .region(Region.US_EAST_1)
             .httpClient(AwsCrtHttpClient.create())
             .build();
 
+        // Build a SendMessageRequest object to fill in the sendMessage() parameter
         SendMessageRequest sendMessageRequest = SendMessageRequest.builder()
             .queueUrl(System.getenv("AWS_VERIFIEDEMAILQUEUE_SQS_URL"))
             .messageBody(jsonStringMessage)
-            .messageGroupId("sigmas")
-            .messageDeduplicationId("test1")
+            .messageGroupId("verification")
+            .messageDeduplicationId(UUID.randomUUID().toString())
             .delaySeconds(0)
-            .build();
-        
-        
+            .build();      
+                
         sqsClient.sendMessage(sendMessageRequest);
+        // Note: the user will not be able to click the Sign-Up button until
+        // the 2 minute ewindow expires or the account verification is successful
+        // as to prevent potential UUID collisions
+    }
+
+    public String postRequestHandler() {
+        return null;
     }
 
     @Override
@@ -99,22 +110,28 @@ public class App implements RequestHandler<LinkedHashMap<String, Object>, Object
         ObjectMapper objectMapper = new ObjectMapper();
         JsonNode json = objectMapper.valueToTree(input);
 
+        return switch (json.get("routeKey").textValue()) {
+            case "POST /ligmaballs" -> postRequestHandler();
+            default -> "L + ratio + rip bozo XD";
+        };
+        /*
         // execute email sending if POST request to correct api endpoint
         if ("POST /ligmaballs".equals(json.get("routeKey").textValue())) {
-            String bodyString = json.get("body").textValue();
-            try {
-                JsonNode body = objectMapper.readTree(bodyString);
-                try {
-                    sendSQSMessage(bodyString);
-                    return sendBrevoTransacEmail(body);
-                } catch (Exception e) {
-                    return e.getMessage();
-                }
-            } catch (Exception e) {
-                return "Error occurred parsing JSON :(";
-            }
-        } else {
-            return "Goofy routekey/method detected :P";
+        String bodyString = json.get("body").textValue();
+        try {
+        JsonNode body = objectMapper.readTree(bodyString);
+        try {
+        sendSQSMessage(bodyString);
+        return sendBrevoTransacEmail(body);
+        } catch (Exception e) {
+        return e.getMessage();
         }
+        } catch (Exception e) {
+        return "Error occurred parsing JSON :(";
+        }
+        } else {
+        return "Goofy routekey/method detected :P";
+        }
+         */
     }
 }
